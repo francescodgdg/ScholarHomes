@@ -14,11 +14,13 @@ import { Link, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { FontAwesome } from '@expo/vector-icons';
 import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/lib/supabase';
 
 export default function LoginScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [isResetting, setIsResetting] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const { signIn } = useAuth();
   const router = useRouter();
@@ -39,6 +41,40 @@ export default function LoginScreen() {
     // Navigation handled by auth state change in _layout.tsx
   };
 
+  const handleForgotPassword = async () => {
+    if (!email) {
+      Alert.alert('Enter Email', 'Please enter your email address first, then tap "Forgot password?"');
+      return;
+    }
+
+    Alert.alert(
+      'Reset Password',
+      `Send password reset link to ${email}?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Send',
+          onPress: async () => {
+            setIsResetting(true);
+            const { error } = await supabase.auth.resetPasswordForEmail(email, {
+              redirectTo: 'scholarhomesapp://reset-password',
+            });
+            setIsResetting(false);
+
+            if (error) {
+              Alert.alert('Error', error.message);
+            } else {
+              Alert.alert(
+                'Check Your Email',
+                'If an account exists with this email, you will receive a password reset link.'
+              );
+            }
+          },
+        },
+      ]
+    );
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       <KeyboardAvoidingView
@@ -50,7 +86,7 @@ export default function LoginScreen() {
             <FontAwesome name="chevron-left" size={20} color="#333" />
           </Pressable>
 
-          <Text style={styles.title}>Welcome Back</Text>
+          <Text style={styles.title}>Log In</Text>
 
           <View style={styles.form}>
             <View style={styles.inputContainer}>
@@ -74,6 +110,8 @@ export default function LoginScreen() {
                 value={password}
                 onChangeText={setPassword}
                 secureTextEntry={!showPassword}
+                textContentType="oneTimeCode"
+                autoComplete="off"
               />
               <Pressable
                 style={styles.eyeButton}
@@ -87,8 +125,10 @@ export default function LoginScreen() {
               </Pressable>
             </View>
 
-            <Pressable style={styles.forgotPassword}>
-              <Text style={styles.forgotPasswordText}>Forgot password?</Text>
+            <Pressable style={styles.forgotPassword} onPress={handleForgotPassword} disabled={isResetting}>
+              <Text style={styles.forgotPasswordText}>
+                {isResetting ? 'Sending...' : 'Forgot password?'}
+              </Text>
             </Pressable>
 
             <Pressable

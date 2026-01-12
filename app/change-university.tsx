@@ -7,12 +7,11 @@ import {
   Pressable,
   FlatList,
   ActivityIndicator,
+  Alert,
   KeyboardAvoidingView,
   Platform,
-  Alert,
 } from 'react-native';
-import { useRouter } from 'expo-router';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { Stack, useRouter } from 'expo-router';
 import { FontAwesome } from '@expo/vector-icons';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
@@ -33,14 +32,40 @@ interface UniversityResult {
   isLocal: boolean;
 }
 
-export default function SelectUniversityScreen() {
+export default function ChangeUniversityScreen() {
   const [search, setSearch] = useState('');
   const [results, setResults] = useState<UniversityResult[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
   const [selectedItem, setSelectedItem] = useState<UniversityResult | null>(null);
-  const { updateProfile } = useAuth();
+  const [currentUniversity, setCurrentUniversity] = useState<string | null>(null);
+  const { profile, updateProfile } = useAuth();
   const router = useRouter();
+
+  const handleBack = useCallback(() => {
+    if (router.canGoBack()) {
+      router.back();
+    } else {
+      router.replace('/edit-profile');
+    }
+  }, [router]);
+
+  useEffect(() => {
+    if (profile?.university_id) {
+      fetchCurrentUniversity();
+    }
+  }, [profile?.university_id]);
+
+  const fetchCurrentUniversity = async () => {
+    const { data } = await supabase
+      .from('universities')
+      .select('name')
+      .eq('id', profile?.university_id)
+      .single();
+
+    if (data) {
+      setCurrentUniversity(data.name);
+    }
+  };
 
   // Debounced search
   useEffect(() => {
@@ -60,13 +85,11 @@ export default function SelectUniversityScreen() {
     setIsSearching(true);
 
     try {
-      // Search both local database and Hipolabs API in parallel
       const [localResults, apiResults] = await Promise.all([
         searchLocalUniversities(query),
         searchHipolabsAPI(query),
       ]);
 
-      // Combine results, prioritizing local matches
       const localNames = new Set(localResults.map((u) => u.name.toLowerCase()));
       const filteredApiResults = apiResults.filter(
         (u) => !localNames.has(u.name.toLowerCase())
@@ -85,7 +108,7 @@ export default function SelectUniversityScreen() {
       .from('universities')
       .select('id, name, domain')
       .ilike('name', `%${query}%`)
-      .limit(100);
+      .limit(10);
 
     if (error) {
       console.error('Error searching local universities:', error);
@@ -119,13 +142,27 @@ export default function SelectUniversityScreen() {
   };
 
   const handleSelect = async (item: UniversityResult) => {
+    // Confirm change
+    Alert.alert(
+      'Change University',
+      `Are you sure you want to change your university to ${item.name}?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Change',
+          onPress: () => performChange(item),
+        },
+      ]
+    );
+  };
+
+  const performChange = async (item: UniversityResult) => {
     setSelectedItem(item);
-    setIsLoading(true);
 
     try {
       let universityId = item.id;
 
-      // If it's from the API (not local), create it in our database first
+      // If it's from the API, create it first
       if (!item.isLocal) {
         const { data: newUni, error: createError } = await supabase
           .from('universities')
@@ -137,7 +174,6 @@ export default function SelectUniversityScreen() {
           .single();
 
         if (createError) {
-          // University might already exist (race condition), try to find it
           const { data: existingUni } = await supabase
             .from('universities')
             .select('id')
@@ -154,65 +190,100 @@ export default function SelectUniversityScreen() {
         }
       }
 
-      // Update user profile with selected university
       const { error: updateError } = await updateProfile({ university_id: universityId });
 
       if (updateError) {
         throw updateError;
       }
 
-      router.replace('/(auth)/complete-profile');
-    } catch (error: any) {
-      console.error('Error selecting university:', error);
-      Alert.alert('Error', error?.message || 'Failed to select university. Please try again.');
+      Alert.alert('Success', 'University updated successfully!', [
+        { text: 'OK', onPress: () => router.back() },
+      ]);
+    } catch (error) {
+      console.error('Error changing university:', error);
+      Alert.alert('Error', 'Failed to change university');
       setSelectedItem(null);
-    } finally {
-      setIsLoading(false);
     }
   };
 
-  const renderUniversity = ({ item }: { item: UniversityResult }) => (
-    <Pressable
-      style={[
-        styles.universityItem,
-        selectedItem?.name === item.name && styles.universityItemSelected,
-      ]}
-      onPress={() => handleSelect(item)}
-      disabled={selectedItem !== null}
-    >
-      <View style={styles.universityInfo}>
-        <Text style={styles.universityName}>{item.name}</Text>
-        {item.domain && (
-          <Text style={styles.universityDomain}>{item.domain}</Text>
-        )}
-      </View>
-      {selectedItem?.name === item.name ? (
-        <ActivityIndicator size="small" color="#4A90E2" />
-      ) : item.isLocal ? (
-        <View style={styles.localBadge}>
-          <Text style={styles.localBadgeText}>Saved</Text>
+  const renderUniversity = ({ item }: { item: UniversityResult }) => {
+    const isCurrent = item.name === currentUniversity;
+
+    return (
+      <Pressable
+        style={[
+          styles.universityItem,
+          selectedItem?.name === item.name && styles.universityItemSelected,
+          isCurrent && styles.universityItemCurrent,
+        ]}
+        onPress={() => handleSelect(item)}
+        disabled={selectedItem !== null || isCurrent}
+      >
+        <View style={styles.universityInfo}>
+          <Text style={styles.universityName}>{item.name}</Text>
+          {item.domain && (
+            <Text style={styles.universityDomain}>{item.domain}</Text>
+          )}
         </View>
-      ) : null}
-    </Pressable>
-  );
+        {selectedItem?.name === item.name ? (
+          <ActivityIndicator size="small" color="#4A90E2" />
+        ) : isCurrent ? (
+          <View style={styles.currentBadge}>
+            <Text style={styles.currentBadgeText}>Current</Text>
+          </View>
+        ) : item.isLocal ? (
+          <View style={styles.localBadge}>
+            <Text style={styles.localBadgeText}>Saved</Text>
+          </View>
+        ) : null}
+      </Pressable>
+    );
+  };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <>
+      <Stack.Screen
+        options={{
+          title: 'Change University',
+          headerBackVisible: false,
+          headerLeft: () => (
+            <Pressable
+              onPress={handleBack}
+              style={{
+                width: 36,
+                height: 36,
+                borderRadius: 18,
+                backgroundColor: '#f5f5f5',
+                justifyContent: 'center',
+                alignItems: 'center',
+              }}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              <FontAwesome name="chevron-left" size={18} color="#333" />
+            </Pressable>
+          ),
+        }}
+      />
       <KeyboardAvoidingView
-        style={styles.content}
+        style={styles.container}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
       >
-        <Text style={styles.title}>Select Your University</Text>
-        <Text style={styles.subtitle}>
-          Search for your school to connect with other students
-        </Text>
+        {currentUniversity && (
+          <View style={styles.currentSection}>
+            <Text style={styles.currentLabel}>Current University</Text>
+            <View style={styles.currentRow}>
+              <FontAwesome name="university" size={18} color="#4A90E2" />
+              <Text style={styles.currentName}>{currentUniversity}</Text>
+            </View>
+          </View>
+        )}
 
         <View style={styles.searchContainer}>
           <FontAwesome name="search" size={18} color="#999" />
           <TextInput
             style={styles.searchInput}
-            placeholder="Search any US university..."
+            placeholder="Search for a new university..."
             placeholderTextColor="#999"
             value={search}
             onChangeText={setSearch}
@@ -231,38 +302,27 @@ export default function SelectUniversityScreen() {
 
         {search.length < 2 ? (
           <View style={styles.hintContainer}>
-            <FontAwesome name="university" size={48} color="#E0E0E0" />
             <Text style={styles.hintText}>
-              Type at least 2 letters to search
-            </Text>
-            <Text style={styles.hintSubtext}>
-              All US universities available
+              Search for any US university to change your school
             </Text>
           </View>
         ) : results.length > 0 ? (
-          <>
-            <Text style={styles.sectionTitle}>
-              {results.length} {results.length === 1 ? 'Result' : 'Results'}
-            </Text>
-            <FlatList
-              data={results}
-              renderItem={renderUniversity}
-              keyExtractor={(item, index) => item.id || `api-${index}-${item.name}`}
-              style={styles.list}
-              showsVerticalScrollIndicator={false}
-              keyboardShouldPersistTaps="handled"
-            />
-          </>
+          <FlatList
+            data={results}
+            renderItem={renderUniversity}
+            keyExtractor={(item, index) => item.id || `api-${index}-${item.name}`}
+            style={styles.list}
+            contentContainerStyle={styles.listContent}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+          />
         ) : !isSearching ? (
           <View style={styles.emptyContainer}>
             <Text style={styles.emptyText}>No universities found</Text>
-            <Text style={styles.emptySubtext}>
-              Try a different search term
-            </Text>
           </View>
         ) : null}
       </KeyboardAvoidingView>
-    </SafeAreaView>
+    </>
   );
 }
 
@@ -271,21 +331,29 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#fff',
   },
-  content: {
-    flex: 1,
-    paddingHorizontal: 24,
-    paddingTop: 24,
+  currentSection: {
+    padding: 16,
+    backgroundColor: '#F8F9FA',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E0E0E0',
   },
-  title: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#333',
+  currentLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#666',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
     marginBottom: 8,
   },
-  subtitle: {
+  currentRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  currentName: {
     fontSize: 16,
-    color: '#666',
-    marginBottom: 24,
+    fontWeight: '600',
+    color: '#333',
   },
   searchContainer: {
     flexDirection: 'row',
@@ -293,7 +361,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#F5F5F5',
     borderRadius: 12,
     paddingHorizontal: 16,
-    marginBottom: 24,
+    margin: 16,
   },
   searchInput: {
     flex: 1,
@@ -302,16 +370,11 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#333',
   },
-  sectionTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#666',
-    marginBottom: 12,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
   list: {
     flex: 1,
+  },
+  listContent: {
+    paddingHorizontal: 16,
   },
   universityItem: {
     flexDirection: 'row',
@@ -327,6 +390,10 @@ const styles = StyleSheet.create({
     backgroundColor: '#E3F2FD',
     borderColor: '#4A90E2',
     borderWidth: 1,
+  },
+  universityItemCurrent: {
+    backgroundColor: '#E8F5E9',
+    opacity: 0.7,
   },
   universityInfo: {
     flex: 1,
@@ -353,24 +420,28 @@ const styles = StyleSheet.create({
     color: '#4CAF50',
     fontWeight: '600',
   },
+  currentBadge: {
+    backgroundColor: '#4A90E2',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  currentBadgeText: {
+    fontSize: 11,
+    color: '#fff',
+    fontWeight: '600',
+  },
   hintContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    paddingHorizontal: 32,
     paddingBottom: 100,
   },
   hintText: {
     fontSize: 16,
     color: '#999',
     textAlign: 'center',
-    marginTop: 16,
-    paddingHorizontal: 32,
-  },
-  hintSubtext: {
-    fontSize: 14,
-    color: '#bbb',
-    textAlign: 'center',
-    marginTop: 8,
   },
   emptyContainer: {
     flex: 1,
@@ -379,13 +450,7 @@ const styles = StyleSheet.create({
     paddingBottom: 100,
   },
   emptyText: {
-    fontSize: 18,
+    fontSize: 16,
     color: '#666',
-    fontWeight: '500',
-  },
-  emptySubtext: {
-    fontSize: 14,
-    color: '#999',
-    marginTop: 8,
   },
 });

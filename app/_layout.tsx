@@ -17,12 +17,18 @@ export const unstable_settings = {
 SplashScreen.preventAutoHideAsync();
 
 function RootLayoutNav() {
-  const { user, profile, isLoading } = useAuth();
+  const { user, profile, isLoading, isPasswordRecovery } = useAuth();
   const segments = useSegments();
   const router = useRouter();
 
   useEffect(() => {
     if (isLoading) return;
+
+    // Handle password recovery - redirect to reset password screen
+    if (isPasswordRecovery) {
+      router.replace('/(auth)/reset-password');
+      return;
+    }
 
     const inAuthGroup = segments[0] === '(auth)';
     const inAdminGroup = segments[0] === '(admin)';
@@ -48,10 +54,10 @@ function RootLayoutNav() {
         router.replace('/(tabs)');
       }
     }
-  }, [user, profile, isLoading, segments]);
+  }, [user, profile, isLoading, isPasswordRecovery, segments]);
 
   return (
-    <Stack screenOptions={{ headerShown: false }}>
+    <Stack screenOptions={{ headerShown: false, headerBackTitleVisible: false }}>
       <Stack.Screen name="(tabs)" />
       <Stack.Screen name="(auth)" />
       <Stack.Screen name="(admin)" />
@@ -59,52 +65,54 @@ function RootLayoutNav() {
         name="listing/[id]"
         options={{
           headerShown: true,
+          headerBackVisible: false,
           headerTitle: '',
-          headerBackTitle: 'Back',
         }}
       />
       <Stack.Screen
         name="chat/[id]"
         options={{
           headerShown: true,
+          headerBackVisible: false,
           headerTitle: '',
-          headerBackTitle: 'Back',
         }}
       />
       <Stack.Screen
         name="edit-profile"
         options={{
           headerShown: true,
+          headerBackVisible: false,
         }}
       />
       <Stack.Screen
         name="settings"
         options={{
           headerShown: true,
+          headerBackVisible: false,
         }}
       />
       <Stack.Screen
         name="my-listings"
         options={{
           headerShown: true,
+          headerBackVisible: false,
           headerTitle: 'My Listings',
-          headerBackTitle: 'Profile',
         }}
       />
       <Stack.Screen
         name="saved"
         options={{
           headerShown: true,
+          headerBackVisible: false,
           headerTitle: 'Saved Listings',
-          headerBackTitle: 'Profile',
         }}
       />
       <Stack.Screen
         name="change-university"
         options={{
           headerShown: true,
+          headerBackVisible: false,
           headerTitle: 'Change University',
-          headerBackTitle: 'Back',
         }}
       />
     </Stack>

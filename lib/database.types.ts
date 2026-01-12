@@ -87,6 +87,9 @@ export interface Database {
           available_to: string | null;
           amenities: string[];
           images: string[];
+          contact_name: string | null;
+          contact_phone: string | null;
+          contact_email: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -108,6 +111,9 @@ export interface Database {
           available_to?: string | null;
           amenities?: string[];
           images?: string[];
+          contact_name?: string | null;
+          contact_phone?: string | null;
+          contact_email?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -129,6 +135,9 @@ export interface Database {
           available_to?: string | null;
           amenities?: string[];
           images?: string[];
+          contact_name?: string | null;
+          contact_phone?: string | null;
+          contact_email?: string | null;
           created_at?: string;
           updated_at?: string;
         };

@@ -2,7 +2,7 @@
   "expo": {
     "name": "ScholarHomesApp",
     "slug": "ScholarHomesApp",
-    "version": "1.0.0",
+    "version": "1.0.3",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "scholarhomesapp",
@@ -15,7 +15,11 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.scholarhomes.app"
+      "bundleIdentifier": "com.scholarhomes.app",
+      "buildNumber": "8",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "package": "com.scholarhomes.app",

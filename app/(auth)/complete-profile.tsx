@@ -15,6 +15,7 @@ import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { FontAwesome } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
+import * as ImageManipulator from 'expo-image-manipulator';
 import * as FileSystem from 'expo-file-system/legacy';
 import { decode } from 'base64-arraybuffer';
 import { useAuth } from '@/contexts/AuthContext';
@@ -41,16 +42,31 @@ export default function CompleteProfileScreen() {
     }
   };
 
+  const compressImage = async (uri: string): Promise<string> => {
+    try {
+      const result = await ImageManipulator.manipulateAsync(
+        uri,
+        [{ resize: { width: 400 } }], // Avatar only needs 400px
+        { compress: 0.8, format: ImageManipulator.SaveFormat.JPEG }
+      );
+      return result.uri;
+    } catch (error) {
+      console.error('Error compressing image:', error);
+      return uri;
+    }
+  };
+
   const uploadImage = async (uri: string) => {
     if (!user) return;
 
     setIsUploadingImage(true);
     try {
-      const fileExt = uri.split('.').pop()?.toLowerCase() || 'jpg';
-      const fileName = `${user.id}-${Date.now()}.${fileExt}`;
+      // Compress avatar before uploading
+      const compressedUri = await compressImage(uri);
+      const fileName = `${user.id}-${Date.now()}.jpg`;
 
       // Read file as base64 and convert to ArrayBuffer
-      const base64 = await FileSystem.readAsStringAsync(uri, {
+      const base64 = await FileSystem.readAsStringAsync(compressedUri, {
         encoding: 'base64',
       });
       const arrayBuffer = decode(base64);
@@ -58,7 +74,7 @@ export default function CompleteProfileScreen() {
       const { error: uploadError } = await supabase.storage
         .from('avatars')
         .upload(fileName, arrayBuffer, {
-          contentType: `image/${fileExt}`,
+          contentType: 'image/jpeg',
         });
 
       if (uploadError) throw uploadError;

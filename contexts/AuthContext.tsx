@@ -8,6 +8,8 @@ interface AuthContextType {
   user: User | null;
   profile: Profile | null;
   isLoading: boolean;
+  isPasswordRecovery: boolean;
+  clearPasswordRecovery: () => void;
   signUp: (email: string, password: string) => Promise<{ error: Error | null }>;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
@@ -21,6 +23,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isPasswordRecovery, setIsPasswordRecovery] = useState(false);
+
+  const clearPasswordRecovery = () => {
+    setIsPasswordRecovery(false);
+  };
 
   useEffect(() => {
     // Get initial session
@@ -36,7 +43,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (_event, session) => {
+      async (event, session) => {
+        // Handle password recovery event
+        if (event === 'PASSWORD_RECOVERY') {
+          setIsPasswordRecovery(true);
+        }
+
         setSession(session);
         setUser(session?.user ?? null);
         if (session?.user) {
@@ -82,14 +94,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const signUp = async (email: string, password: string) => {
-    // Validate .edu email
-    if (!email.endsWith('.edu')) {
-      return { error: new Error('Please use a valid .edu email address') };
-    }
+    // TODO: Re-enable .edu validation for production
+    // if (!email.endsWith('.edu')) {
+    //   return { error: new Error('Please use a valid .edu email address') };
+    // }
 
     const { error } = await supabase.auth.signUp({
       email,
       password,
+      options: {
+        emailRedirectTo: 'scholarhomesapp://login',
+      },
     });
 
     return { error: error ? new Error(error.message) : null };
@@ -158,6 +173,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         user,
         profile,
         isLoading,
+        isPasswordRecovery,
+        clearPasswordRecovery,
         signUp,
         signIn,
         signOut,

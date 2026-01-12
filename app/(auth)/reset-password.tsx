@@ -10,31 +10,25 @@ import {
   Alert,
   ActivityIndicator,
 } from 'react-native';
-import { Link, useRouter } from 'expo-router';
+import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { FontAwesome } from '@expo/vector-icons';
+import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 
-export default function SignUpScreen() {
-  const [email, setEmail] = useState('');
+export default function ResetPasswordScreen() {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const { signUp } = useAuth();
+  const { clearPasswordRecovery, signOut } = useAuth();
   const router = useRouter();
 
-  const handleSignUp = async () => {
-    if (!email || !password || !confirmPassword) {
+  const handleResetPassword = async () => {
+    if (!password || !confirmPassword) {
       Alert.alert('Error', 'Please fill in all fields');
       return;
     }
-
-    // TODO: Re-enable .edu validation for production
-    // if (!email.endsWith('.edu')) {
-    //   Alert.alert('Error', 'Please use a valid .edu email address');
-    //   return;
-    // }
 
     // Password validation - must be 8+ chars with lowercase + uppercase OR lowercase + number
     if (password.length < 8) {
@@ -60,17 +54,18 @@ export default function SignUpScreen() {
     }
 
     setIsLoading(true);
-    const { error } = await signUp(email, password);
+    const { error } = await supabase.auth.updateUser({ password });
     setIsLoading(false);
 
     if (error) {
       Alert.alert('Error', error.message);
     } else {
-      Alert.alert(
-        'Verify Your Email',
-        'We sent a verification link to your email. Please check your inbox and click the link to activate your account, then come back to log in.',
-        [{ text: 'Got it', onPress: () => router.replace('/(auth)/login') }]
-      );
+      // Clear the password recovery state and sign out
+      clearPasswordRecovery();
+      await signOut();
+      Alert.alert('Success', 'Your password has been reset. Please log in with your new password.', [
+        { text: 'OK', onPress: () => router.replace('/(auth)/login') },
+      ]);
     }
   };
 
@@ -81,31 +76,18 @@ export default function SignUpScreen() {
         style={styles.keyboardView}
       >
         <View style={styles.content}>
-          <Pressable style={styles.backButton} onPress={() => router.back()}>
-            <FontAwesome name="chevron-left" size={20} color="#333" />
-          </Pressable>
+          <View style={styles.iconContainer}>
+            <FontAwesome name="lock" size={48} color="#4A90E2" />
+          </View>
 
-          <Text style={styles.title}>Create Account</Text>
+          <Text style={styles.title}>Reset Password</Text>
+          <Text style={styles.subtitle}>Enter your new password below</Text>
 
           <View style={styles.form}>
             <View style={styles.inputContainer}>
               <TextInput
                 style={styles.input}
-                placeholder=".edu email"
-                placeholderTextColor="#999"
-                value={email}
-                onChangeText={setEmail}
-                keyboardType="email-address"
-                autoCapitalize="none"
-                autoCorrect={false}
-              />
-            </View>
-            <Text style={styles.hint}>Use your school email</Text>
-
-            <View style={styles.inputContainer}>
-              <TextInput
-                style={styles.input}
-                placeholder="Password"
+                placeholder="New Password"
                 placeholderTextColor="#999"
                 value={password}
                 onChangeText={setPassword}
@@ -129,7 +111,7 @@ export default function SignUpScreen() {
             <View style={styles.inputContainer}>
               <TextInput
                 style={styles.input}
-                placeholder="Confirm Password"
+                placeholder="Confirm New Password"
                 placeholderTextColor="#999"
                 value={confirmPassword}
                 onChangeText={setConfirmPassword}
@@ -141,24 +123,15 @@ export default function SignUpScreen() {
 
             <Pressable
               style={[styles.button, isLoading && styles.buttonDisabled]}
-              onPress={handleSignUp}
+              onPress={handleResetPassword}
               disabled={isLoading}
             >
               {isLoading ? (
                 <ActivityIndicator color="#fff" />
               ) : (
-                <Text style={styles.buttonText}>Sign Up</Text>
+                <Text style={styles.buttonText}>Reset Password</Text>
               )}
             </Pressable>
-          </View>
-
-          <View style={styles.footer}>
-            <Text style={styles.footerText}>Already have an account? </Text>
-            <Link href="/(auth)/login" asChild>
-              <Pressable>
-                <Text style={styles.footerLink}>Log in</Text>
-              </Pressable>
-            </Link>
           </View>
         </View>
       </KeyboardAvoidingView>
@@ -177,18 +150,23 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
     paddingHorizontal: 24,
-    paddingTop: 16,
+    paddingTop: 48,
   },
-  backButton: {
-    width: 40,
-    height: 40,
-    justifyContent: 'center',
+  iconContainer: {
+    alignItems: 'center',
+    marginBottom: 24,
   },
   title: {
     fontSize: 28,
     fontWeight: 'bold',
     color: '#333',
-    marginTop: 24,
+    textAlign: 'center',
+  },
+  subtitle: {
+    fontSize: 16,
+    color: '#666',
+    textAlign: 'center',
+    marginTop: 8,
     marginBottom: 32,
   },
   form: {
@@ -229,20 +207,6 @@ const styles = StyleSheet.create({
   buttonText: {
     color: '#fff',
     fontSize: 18,
-    fontWeight: '600',
-  },
-  footer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    marginTop: 24,
-  },
-  footerText: {
-    fontSize: 16,
-    color: '#666',
-  },
-  footerLink: {
-    fontSize: 16,
-    color: '#4A90E2',
     fontWeight: '600',
   },
 });

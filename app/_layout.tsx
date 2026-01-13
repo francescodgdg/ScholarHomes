@@ -2,7 +2,7 @@ import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { useFonts } from 'expo-font';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 
@@ -16,20 +16,10 @@ export const unstable_settings = {
 
 SplashScreen.preventAutoHideAsync();
 
-function RootLayoutNav({ fontsLoaded }: { fontsLoaded: boolean }) {
+function RootLayoutNav() {
   const { user, profile, isLoading, isPasswordRecovery } = useAuth();
   const segments = useSegments();
   const router = useRouter();
-  const [appReady, setAppReady] = useState(false);
-  const [navigationReady, setNavigationReady] = useState(false);
-
-  // Hide splash screen only when both fonts AND auth are loaded
-  useEffect(() => {
-    if (fontsLoaded && !isLoading && !appReady) {
-      setAppReady(true);
-      SplashScreen.hideAsync();
-    }
-  }, [fontsLoaded, isLoading, appReady]);
 
   useEffect(() => {
     if (isLoading) return;
@@ -37,7 +27,6 @@ function RootLayoutNav({ fontsLoaded }: { fontsLoaded: boolean }) {
     // Handle password recovery - redirect to reset password screen
     if (isPasswordRecovery) {
       router.replace('/(auth)/reset-password');
-      setNavigationReady(true);
       return;
     }
 
@@ -65,15 +54,7 @@ function RootLayoutNav({ fontsLoaded }: { fontsLoaded: boolean }) {
         router.replace('/(tabs)');
       }
     }
-
-    // Mark navigation as ready after initial routing decision
-    setNavigationReady(true);
   }, [user, profile, isLoading, isPasswordRecovery, segments]);
-
-  // Don't render navigation until we've determined the correct route
-  if (!navigationReady) {
-    return null;
-  }
 
   return (
     <Stack screenOptions={{ headerShown: false, headerBackTitleVisible: false }}>
@@ -148,7 +129,12 @@ export default function RootLayout() {
     if (error) throw error;
   }, [error]);
 
-  // Don't render until fonts are loaded, but keep splash screen visible
+  useEffect(() => {
+    if (loaded) {
+      SplashScreen.hideAsync();
+    }
+  }, [loaded]);
+
   if (!loaded) {
     return null;
   }
@@ -156,7 +142,7 @@ export default function RootLayout() {
   return (
     <SafeAreaProvider>
       <AuthProvider>
-        <RootLayoutNav fontsLoaded={loaded} />
+        <RootLayoutNav />
       </AuthProvider>
     </SafeAreaProvider>
   );

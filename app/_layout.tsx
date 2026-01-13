@@ -2,7 +2,7 @@ import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { useFonts } from 'expo-font';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 
@@ -16,10 +16,19 @@ export const unstable_settings = {
 
 SplashScreen.preventAutoHideAsync();
 
-function RootLayoutNav() {
+function RootLayoutNav({ fontsLoaded }: { fontsLoaded: boolean }) {
   const { user, profile, isLoading, isPasswordRecovery } = useAuth();
   const segments = useSegments();
   const router = useRouter();
+  const splashHidden = useRef(false);
+
+  // Hide splash screen only when both fonts AND auth are loaded
+  useEffect(() => {
+    if (fontsLoaded && !isLoading && !splashHidden.current) {
+      splashHidden.current = true;
+      SplashScreen.hideAsync();
+    }
+  }, [fontsLoaded, isLoading]);
 
   useEffect(() => {
     if (isLoading) return;
@@ -129,12 +138,7 @@ export default function RootLayout() {
     if (error) throw error;
   }, [error]);
 
-  useEffect(() => {
-    if (loaded) {
-      SplashScreen.hideAsync();
-    }
-  }, [loaded]);
-
+  // Don't render until fonts are loaded, splash stays visible
   if (!loaded) {
     return null;
   }
@@ -142,7 +146,7 @@ export default function RootLayout() {
   return (
     <SafeAreaProvider>
       <AuthProvider>
-        <RootLayoutNav />
+        <RootLayoutNav fontsLoaded={loaded} />
       </AuthProvider>
     </SafeAreaProvider>
   );

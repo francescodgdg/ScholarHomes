@@ -49,14 +49,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setIsPasswordRecovery(true);
         }
 
-        setSession(session);
-        setUser(session?.user ?? null);
+        // Keep loading true until profile is fetched to prevent navigation flash
         if (session?.user) {
+          setIsLoading(true);
+          setSession(session);
+          setUser(session.user);
           await fetchProfile(session.user.id);
+          // fetchProfile sets isLoading to false
         } else {
+          setSession(null);
+          setUser(null);
           setProfile(null);
+          setIsLoading(false);
         }
-        setIsLoading(false);
       }
     );
 

@@ -22,13 +22,26 @@ function RootLayoutNav({ fontsLoaded }: { fontsLoaded: boolean }) {
   const router = useRouter();
   const splashHidden = useRef(false);
 
-  // Hide splash screen only when both fonts AND auth are loaded
+  // Hide splash screen when fonts AND auth are loaded, OR after 3 second timeout
   useEffect(() => {
-    if (fontsLoaded && !isLoading && !splashHidden.current) {
-      splashHidden.current = true;
-      SplashScreen.hideAsync();
+    if (!splashHidden.current) {
+      if (fontsLoaded && !isLoading) {
+        splashHidden.current = true;
+        SplashScreen.hideAsync();
+      }
     }
   }, [fontsLoaded, isLoading]);
+
+  // Safety timeout - hide splash after 3 seconds no matter what
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      if (!splashHidden.current) {
+        splashHidden.current = true;
+        SplashScreen.hideAsync();
+      }
+    }, 3000);
+    return () => clearTimeout(timeout);
+  }, []);
 
   useEffect(() => {
     if (isLoading) return;

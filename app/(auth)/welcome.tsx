@@ -1,14 +1,16 @@
-import { StyleSheet, View, Text, Pressable } from 'react-native';
+import { StyleSheet, View, Text, Pressable, Image } from 'react-native';
 import { Link } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { FontAwesome } from '@expo/vector-icons';
 
 export default function WelcomeScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.content}>
         <View style={styles.logoContainer}>
-          <FontAwesome name="graduation-cap" size={64} color="#4A90E2" />
+          <Image
+            source={require('../../assets/images/icon.png')}
+            style={styles.logo}
+          />
           <Text style={styles.title}>Scholar Homes</Text>
           <Text style={styles.subtitle}>Find your perfect student housing</Text>
         </View>
@@ -46,6 +48,11 @@ const styles = StyleSheet.create({
   logoContainer: {
     alignItems: 'center',
     marginTop: 60,
+  },
+  logo: {
+    width: 120,
+    height: 120,
+    resizeMode: 'contain',
   },
   title: {
     fontSize: 32,

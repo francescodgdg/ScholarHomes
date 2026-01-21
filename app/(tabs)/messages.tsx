@@ -8,11 +8,14 @@ import {
   Image,
   RefreshControl,
   ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { useRouter } from 'expo-router';
+import { useFocusEffect } from '@react-navigation/native';
 import { FontAwesome } from '@expo/vector-icons';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
+import { useMessages } from '@/contexts/MessageContext';
 
 interface ConversationPreview {
   id: string;
@@ -40,6 +43,7 @@ export default function MessagesScreen() {
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const { user } = useAuth();
+  const { refreshUnreadCount } = useMessages();
   const router = useRouter();
 
   const fetchConversations = useCallback(async () => {
@@ -161,9 +165,124 @@ export default function MessagesScreen() {
     fetchConversations();
   }, [fetchConversations]);
 
+  // Refresh when screen is focused
+  useFocusEffect(
+    useCallback(() => {
+      fetchConversations();
+      refreshUnreadCount();
+    }, [fetchConversations, refreshUnreadCount])
+  );
+
+  // Real-time subscription for messages and conversations
+  useEffect(() => {
+    if (!user) return;
+
+    const channel = supabase
+      .channel('messages-list-realtime')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'messages',
+        },
+        (payload) => {
+          // Update unread count for the specific conversation
+          const newMessage = payload.new as any;
+          if (newMessage.sender_id !== user.id) {
+            setConversations(prev => prev.map(conv => {
+              if (conv.id === newMessage.conversation_id) {
+                return {
+                  ...conv,
+                  unread_count: conv.unread_count + 1,
+                  last_message: {
+                    content: newMessage.content,
+                    created_at: newMessage.created_at,
+                    sender_id: newMessage.sender_id,
+                  },
+                };
+              }
+              return conv;
+            }));
+          }
+          // Also do a full refresh to ensure consistency
+          fetchConversations();
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'messages',
+        },
+        () => {
+          fetchConversations();
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'conversations',
+        },
+        () => {
+          fetchConversations();
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'conversation_participants',
+          filter: `user_id=eq.${user.id}`,
+        },
+        () => {
+          fetchConversations();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user, fetchConversations]);
+
   const onRefresh = () => {
     setIsRefreshing(true);
     fetchConversations();
+  };
+
+  const handleDeleteConversation = (conversationId: string, otherUserName: string) => {
+    Alert.alert(
+      'Delete Conversation',
+      `Are you sure you want to delete your conversation with ${otherUserName}? This will remove the thread from your messages.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            // Remove user from conversation participants (soft delete - doesn't delete for other user)
+            const { error } = await supabase
+              .from('conversation_participants')
+              .delete()
+              .eq('conversation_id', conversationId)
+              .eq('user_id', user?.id);
+
+            if (error) {
+              Alert.alert('Error', 'Failed to delete conversation');
+            } else {
+              // Remove from local state immediately
+              setConversations(prev => prev.filter(c => c.id !== conversationId));
+              refreshUnreadCount();
+            }
+          },
+        },
+      ]
+    );
   };
 
   const formatTime = (dateString: string) => {
@@ -237,6 +356,14 @@ export default function MessagesScreen() {
           </View>
         )}
       </View>
+
+      <Pressable
+        style={styles.moreButton}
+        onPress={() => handleDeleteConversation(item.id, item.other_user.full_name || 'this user')}
+        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+      >
+        <FontAwesome name="ellipsis-v" size={18} color="#999" />
+      </Pressable>
     </Pressable>
   );
 
@@ -352,6 +479,11 @@ const styles = StyleSheet.create({
   },
   conversationInfo: {
     flex: 1,
+  },
+  moreButton: {
+    padding: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   conversationHeader: {
     flexDirection: 'row',

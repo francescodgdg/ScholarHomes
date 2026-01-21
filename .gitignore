@@ -40,3 +40,10 @@ yarn-error.*
 /ios
 /android
 .env
+
+# Build artifacts
+*.ipa
+*.aab
+*.apk
+build-*.ipa
+build-*.aab

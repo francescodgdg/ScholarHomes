@@ -9,6 +9,7 @@ import {
   Alert,
   FlatList,
   ActivityIndicator,
+  RefreshControl,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { FontAwesome } from '@expo/vector-icons';
@@ -18,45 +19,65 @@ import { Listing, University } from '@/lib/database.types';
 
 export default function ProfileScreen() {
   const [myListings, setMyListings] = useState<Listing[]>([]);
+  const [listingsCount, setListingsCount] = useState(0);
   const [university, setUniversity] = useState<University | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const { user, profile, signOut } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
-    fetchUserData();
-  }, [user, profile]);
+    if (user) {
+      fetchUserData();
+    }
+  }, [user?.id, profile?.university_id]);
 
   const fetchUserData = async () => {
     if (!user) return;
 
-    // Fetch user's listings
-    const { data: listingsData, error: listingsError } = await supabase
-      .from('listings')
-      .select('*')
-      .eq('user_id', user.id)
-      .order('created_at', { ascending: false });
+    // Run all fetches in parallel for faster loading
+    const [listingsResult, countResult, universityResult] = await Promise.all([
+      // Fetch only first 3 listings with minimal fields
+      supabase
+        .from('listings')
+        .select('id, title, price, status, images')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false })
+        .limit(3),
+      // Get total count separately
+      supabase
+        .from('listings')
+        .select('id', { count: 'exact', head: true })
+        .eq('user_id', user.id),
+      // Fetch university if we have one
+      profile?.university_id
+        ? supabase
+            .from('universities')
+            .select('id, name')
+            .eq('id', profile.university_id)
+            .single()
+        : Promise.resolve({ data: null }),
+    ]);
 
-    if (listingsError) {
-      console.error('Error fetching listings:', listingsError);
-    } else {
-      setMyListings(listingsData || []);
+    if (!listingsResult.error) {
+      setMyListings(listingsResult.data || []);
     }
 
-    // Fetch university name
-    if (profile?.university_id) {
-      const { data: universityData } = await supabase
-        .from('universities')
-        .select('*')
-        .eq('id', profile.university_id)
-        .single();
+    if (!countResult.error) {
+      setListingsCount(countResult.count || 0);
+    }
 
-      if (universityData) {
-        setUniversity(universityData);
-      }
+    if (universityResult.data) {
+      setUniversity(universityResult.data as University);
     }
 
     setIsLoading(false);
+  };
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await fetchUserData();
+    setRefreshing(false);
   };
 
   const handleSignOut = () => {
@@ -117,19 +138,14 @@ export default function ProfileScreen() {
     </Pressable>
   );
 
-  if (isLoading) {
-    return (
-      <View style={styles.container}>
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#4A90E2" />
-        </View>
-      </View>
-    );
-  }
-
   return (
     <View style={styles.container}>
-      <ScrollView showsVerticalScrollIndicator={false}>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
+      >
         {/* Profile Header */}
         <View style={styles.header}>
           <View style={styles.avatarSection}>
@@ -161,7 +177,7 @@ export default function ProfileScreen() {
             </View>
             <Text style={styles.menuText}>My Listings</Text>
             <View style={styles.menuBadge}>
-              <Text style={styles.menuBadgeText}>{myListings.length}</Text>
+              <Text style={styles.menuBadgeText}>{listingsCount}</Text>
             </View>
             <FontAwesome name="chevron-right" size={16} color="#999" />
           </Pressable>
@@ -195,7 +211,7 @@ export default function ProfileScreen() {
         </View>
 
         {/* My Listings Preview */}
-        {myListings.length > 0 && (
+        {(isLoading || myListings.length > 0) && (
           <View style={styles.listingsSection}>
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>My Listings</Text>
@@ -203,11 +219,17 @@ export default function ProfileScreen() {
                 <Text style={styles.seeAllText}>See All</Text>
               </Pressable>
             </View>
-            {myListings.slice(0, 3).map((listing) => (
-              <View key={listing.id}>
-                {renderListingItem({ item: listing })}
+            {isLoading ? (
+              <View style={styles.listingsLoading}>
+                <ActivityIndicator size="small" color="#4A90E2" />
               </View>
-            ))}
+            ) : (
+              myListings.map((listing) => (
+                <View key={listing.id}>
+                  {renderListingItem({ item: listing })}
+                </View>
+              ))
+            )}
           </View>
         )}
 
@@ -241,9 +263,8 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#F8F9FA',
   },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
+  listingsLoading: {
+    paddingVertical: 24,
     alignItems: 'center',
   },
   header: {

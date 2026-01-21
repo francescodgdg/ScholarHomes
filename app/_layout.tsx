@@ -5,6 +5,7 @@ import * as SplashScreen from 'expo-splash-screen';
 import { useEffect, useRef } from 'react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
+import { MessageProvider } from '@/contexts/MessageContext';
 
 export {
   ErrorBoundary,
@@ -159,7 +160,9 @@ export default function RootLayout() {
   return (
     <SafeAreaProvider>
       <AuthProvider>
-        <RootLayoutNav fontsLoaded={loaded} />
+        <MessageProvider>
+          <RootLayoutNav fontsLoaded={loaded} />
+        </MessageProvider>
       </AuthProvider>
     </SafeAreaProvider>
   );

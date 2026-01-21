@@ -55,6 +55,7 @@ export default function EditListingScreen() {
 
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [listingUserId, setListingUserId] = useState<string | null>(null);
 
   // Form fields
@@ -75,9 +76,50 @@ export default function EditListingScreen() {
   const [contactPhone, setContactPhone] = useState('');
   const [contactEmail, setContactEmail] = useState('');
 
+  const [originalData, setOriginalData] = useState<any>(null);
+
   useEffect(() => {
     fetchListing();
   }, [id]);
+
+  const hasUnsavedChanges = () => {
+    if (!originalData) return false;
+    return (
+      listingType !== originalData.listing_type ||
+      status !== originalData.status ||
+      title !== originalData.title ||
+      price !== originalData.price.toString() ||
+      bedrooms !== originalData.bedrooms.toString() ||
+      bathrooms !== originalData.bathrooms.toString() ||
+      address !== (originalData.address || '') ||
+      description !== (originalData.description || '') ||
+      JSON.stringify(selectedAmenities) !== JSON.stringify(originalData.amenities || []) ||
+      JSON.stringify(images) !== JSON.stringify(originalData.images || []) ||
+      newImages.length > 0 ||
+      contactName !== (originalData.contact_name || '') ||
+      contactPhone !== (originalData.contact_phone || '') ||
+      contactEmail !== (originalData.contact_email || '')
+    );
+  };
+
+  const handleCancel = () => {
+    if (hasUnsavedChanges()) {
+      Alert.alert(
+        'Discard Changes?',
+        'You have unsaved changes. Are you sure you want to discard them?',
+        [
+          { text: 'Keep Editing', style: 'cancel' },
+          {
+            text: 'Discard',
+            style: 'destructive',
+            onPress: () => router.back(),
+          },
+        ]
+      );
+    } else {
+      router.back();
+    }
+  };
 
   const fetchListing = async () => {
     const { data, error } = await supabase
@@ -118,6 +160,9 @@ export default function EditListingScreen() {
     setContactName(data.contact_name || '');
     setContactPhone(data.contact_phone || '');
     setContactEmail(data.contact_email || '');
+
+    // Store original data for change detection
+    setOriginalData(data);
 
     setIsLoading(false);
   };
@@ -238,6 +283,40 @@ export default function EditListingScreen() {
     }
   };
 
+  const handleDelete = () => {
+    Alert.alert(
+      'Delete Listing',
+      'Are you sure you want to delete this listing? This action cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            setIsDeleting(true);
+            try {
+              const { error } = await supabase
+                .from('listings')
+                .delete()
+                .eq('id', id);
+
+              if (error) throw error;
+
+              Alert.alert('Deleted', 'Your listing has been deleted.', [
+                { text: 'OK', onPress: () => router.replace('/(tabs)') },
+              ]);
+            } catch (error) {
+              console.error('Error deleting listing:', error);
+              Alert.alert('Error', 'Failed to delete listing. Please try again.');
+            } finally {
+              setIsDeleting(false);
+            }
+          },
+        },
+      ]
+    );
+  };
+
   if (isLoading) {
     return (
       <SafeAreaView style={styles.loadingContainer}>
@@ -251,7 +330,11 @@ export default function EditListingScreen() {
       <Stack.Screen
         options={{
           title: 'Edit Listing',
-          headerBackTitle: 'Back',
+          headerLeft: () => (
+            <Pressable onPress={handleCancel} style={{ padding: 8 }}>
+              <FontAwesome name="times" size={22} color="#666" />
+            </Pressable>
+          ),
         }}
       />
       <KeyboardAvoidingView
@@ -517,6 +600,22 @@ export default function EditListingScreen() {
             )}
           </Pressable>
 
+          {/* Delete Button */}
+          <Pressable
+            style={[styles.deleteButton, isDeleting && styles.deleteButtonDisabled]}
+            onPress={handleDelete}
+            disabled={isDeleting}
+          >
+            {isDeleting ? (
+              <ActivityIndicator color="#E74C3C" />
+            ) : (
+              <>
+                <FontAwesome name="trash" size={18} color="#E74C3C" />
+                <Text style={styles.deleteButtonText}>Delete Listing</Text>
+              </>
+            )}
+          </Pressable>
+
           <View style={{ height: 40 }} />
         </ScrollView>
       </KeyboardAvoidingView>
@@ -720,6 +819,26 @@ const styles = StyleSheet.create({
   },
   saveButtonText: {
     color: '#fff',
+    fontSize: 18,
+    fontWeight: '600',
+  },
+  deleteButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: '#fff',
+    paddingVertical: 16,
+    borderRadius: 12,
+    marginTop: 12,
+    borderWidth: 1,
+    borderColor: '#E74C3C',
+  },
+  deleteButtonDisabled: {
+    opacity: 0.7,
+  },
+  deleteButtonText: {
+    color: '#E74C3C',
     fontSize: 18,
     fontWeight: '600',
   },

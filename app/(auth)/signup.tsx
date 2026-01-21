@@ -30,11 +30,10 @@ export default function SignUpScreen() {
       return;
     }
 
-    // TODO: Re-enable .edu validation for production
-    // if (!email.endsWith('.edu')) {
-    //   Alert.alert('Error', 'Please use a valid .edu email address');
-    //   return;
-    // }
+    if (!email.toLowerCase().endsWith('.edu')) {
+      Alert.alert('Error', 'Please use a valid .edu email address');
+      return;
+    }
 
     // Password validation - must be 8+ chars with lowercase + uppercase OR lowercase + number
     if (password.length < 8) {

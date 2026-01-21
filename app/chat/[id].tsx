@@ -16,6 +16,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { FontAwesome } from '@expo/vector-icons';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
+import { useMessages } from '@/contexts/MessageContext';
 
 interface Message {
   id: string;
@@ -47,6 +48,7 @@ export default function ChatScreen() {
   const [otherUser, setOtherUser] = useState<OtherUser | null>(null);
   const [listing, setListing] = useState<ListingInfo | null>(null);
   const { user } = useAuth();
+  const { refreshUnreadCount } = useMessages();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const flatListRef = useRef<FlatList>(null);
@@ -119,12 +121,16 @@ export default function ChatScreen() {
   const markMessagesAsRead = async () => {
     if (!user) return;
 
-    await supabase
+    const { error } = await supabase
       .from('messages')
       .update({ read: true })
       .eq('conversation_id', id)
       .neq('sender_id', user.id)
       .eq('read', false);
+
+    if (!error) {
+      refreshUnreadCount();
+    }
   };
 
   useEffect(() => {

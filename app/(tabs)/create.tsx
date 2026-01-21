@@ -70,6 +70,53 @@ export default function CreateListingScreen() {
   const { user, profile } = useAuth();
   const router = useRouter();
 
+  const hasUnsavedChanges = () => {
+    return listingType !== null || images.length > 0 || title || price ||
+           address || description || selectedAmenities.length > 0 ||
+           contactName || contactPhone || contactEmail;
+  };
+
+  const handleCancel = () => {
+    if (hasUnsavedChanges()) {
+      Alert.alert(
+        'Discard Listing?',
+        'You have unsaved changes. Are you sure you want to discard this listing?',
+        [
+          { text: 'Keep Editing', style: 'cancel' },
+          {
+            text: 'Discard',
+            style: 'destructive',
+            onPress: () => {
+              resetForm();
+              router.replace('/(tabs)');
+            },
+          },
+        ]
+      );
+    } else {
+      resetForm();
+      router.replace('/(tabs)');
+    }
+  };
+
+  const resetForm = () => {
+    setStep(1);
+    setListingType(null);
+    setImages([]);
+    setTitle('');
+    setPrice('');
+    setBedrooms('1');
+    setBathrooms('1');
+    setAddress('');
+    setAvailableFrom('');
+    setAvailableTo('');
+    setDescription('');
+    setSelectedAmenities([]);
+    setContactName('');
+    setContactPhone('');
+    setContactEmail('');
+  };
+
   const pickImages = async () => {
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
@@ -171,7 +218,10 @@ export default function CreateListingScreen() {
       if (error) throw error;
 
       Alert.alert('Success', 'Your listing has been posted!', [
-        { text: 'OK', onPress: () => router.replace('/(tabs)') },
+        { text: 'OK', onPress: () => {
+          resetForm();
+          router.replace('/(tabs)');
+        }},
       ]);
     } catch (error) {
       console.error('Error creating listing:', error);
@@ -466,6 +516,17 @@ export default function CreateListingScreen() {
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.keyboardView}
       >
+        {/* Header with cancel button - only show from step 2 onwards */}
+        {step >= 2 && (
+          <View style={styles.header}>
+            <Pressable style={styles.cancelButton} onPress={handleCancel}>
+              <FontAwesome name="times" size={22} color="#666" />
+            </Pressable>
+            <Text style={styles.headerTitle}>Create Listing</Text>
+            <View style={styles.headerSpacer} />
+          </View>
+        )}
+
         {/* Progress indicator */}
         <View style={styles.progress}>
           {[1, 2, 3, 4].map((s) => (
@@ -493,6 +554,29 @@ const styles = StyleSheet.create({
   },
   keyboardView: {
     flex: 1,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+  },
+  cancelButton: {
+    width: 40,
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#333',
+  },
+  headerSpacer: {
+    width: 40,
   },
   progress: {
     flexDirection: 'row',
